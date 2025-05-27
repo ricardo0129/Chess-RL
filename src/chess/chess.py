@@ -33,8 +33,8 @@ class Piece:
     def __init__(self, piece_type: PieceType, color: Color):
         self.piece_type = piece_type
         self.color = color
-        self.has_moved = False
-        self.last_position = None
+        self.move_count = 0
+        self.move_history = []
 
     def __str__(self):
         return f'{PIECE_COLORS[self.color]}{piece_symbol(self.piece_type)}{RESET}'
@@ -56,6 +56,11 @@ class Move():
 
     def __repr__(self):
         return str(self)
+    
+    def __eq__(self, other):
+        if not isinstance(other, Move):
+            return False
+        return self.start == other.start and self.end == other.end
 
 class Board:
     def __init__(self):
@@ -74,6 +79,14 @@ class Board:
     def __setitem__(self, square: tuple[int, int], piece: Piece):
         assert 0 <= square[0] < 8 and 0 <= square[1] < 8, "Square out of bounds"
         self.board[square[0]][square[1]] = piece
+
+    def move_piece(self, start: tuple[int, int], end: tuple[int, int]):
+        if self[end].piece_type != PieceType.EMPTY:
+            self[end].move_history.append(end)
+        self[start].move_history.append(start)
+        self[end] = self[start]
+        self[start] = Piece(PieceType.EMPTY, Color.EMPTY)
+
 
     def __str__(self):
         board_str = ""
@@ -117,7 +130,7 @@ def valid_pawn_moves(square: tuple[int, int], board: 'Board') -> list[tuple[int,
     moves = []
     piece = board[square]
     direction = -1 if piece.color == Color.WHITE else 1
-    if not piece.has_moved:
+    if piece.move_count == 0:
         moves.append((square[0] + direction * 2, square[1]))
     forward_pos = (square[0] + direction, square[1])
     if inside_board(forward_pos) and board[forward_pos].piece_type == PieceType.EMPTY:
@@ -130,8 +143,8 @@ def valid_pawn_moves(square: tuple[int, int], board: 'Board') -> list[tuple[int,
     # Add en passant logic here
     for dy in [-1, 1]:
         en_passant_pos = (square[0], square[1] + dy)
-        if inside_board(en_passant_pos) and board[en_passant_pos].piece_type == PieceType.PAWN and board[en_passant_pos].color != piece.color:
-            if board[en_passant_pos].has_moved:
+        #if inside_board(en_passant_pos) and board[en_passant_pos].piece_type == PieceType.PAWN and board[en_passant_pos].color != piece.color:
+            #if board[en_passant_pos].has_moved:
 
     return moves
 
@@ -164,21 +177,21 @@ class Game:
         self.moves.append(move)
         start_piece = self.board[move.start]
         end_piece = self.board[move.end]
-        if not inside_board(move.start) or not inside_board(move.end):
+        if not inside_board(move.start):
             raise ValueError("Move out of bounds")
         if start_piece.piece_type == PieceType.EMPTY:
             raise ValueError("No piece at start square")
         if start_piece.color != self.current_turn:
             raise ValueError("It's not your turn")
-        if move.end not in valid_moves(move.start, self.board):
+        if move not in valid_moves(move.start, self.board):
+            print(valid_moves(move.start, self.board))
             raise ValueError("Invalid move for the piece")
         # Validated its a valid move, and you are moving your piece, and nothing is out of bounds
-        self.board[move.end] = start_piece
-        self.board[move.start] = Piece(PieceType.EMPTY, Color.EMPTY)
-        start_piece.has_moved = True
+        self.board.move_piece(move.start, move.end)
         # Switch turns
         self.current_turn = Color.BLACK if self.current_turn == Color.WHITE else Color.WHITE
         print(f"Moved {start_piece} from {move.start} to {move.end}")
+
 
     def valid_moves(self, square: tuple[int, int]) -> list[Move]:
         # Logic to find valid moves for a piece at the given square
@@ -189,6 +202,12 @@ class Game:
     def __str__(self):
         return str(self.board)
 
+#def load_fen(fen: str) -> Board:
+
 game = Game()
 print(game)
 print(game.valid_moves((6, 0)))  # Example to get valid moves for a piece at (5, 0)
+game.make_move(Move((6, 0), (4, 0)))  # Example move
+print(game)
+print(game.make_move(Move((1, 0), (2, 0))))  # Example move
+print(game)
